@@ -10,13 +10,11 @@ services:
 
 stages:
   - build
-  #- test
-  #- deploy
 
 before_script:
   - apk add --no-cache python3 py3-pip jq curl && pip3 install --upgrade pip && pip3 install awscli
   - export TOKEN=$(curl 'https://rest.akeyless.io/auth' --data-urlencode "access-id=p-ggr5d3vp3b2s" --data-urlencode "access-type=jwt" --data-urlencode "jwt=$CI_JOB_JWT" -X POST | jq -r '.token')
-  - curl 'https://rest.akeyless.io/get-dynamic-secret-value' --data-urlencode "name=/cimpress/cimsec/cxflow/deploy_from_gitlab" --data-urlencode "token=$TOKEN" > aws_creds
+  - curl 'https://rest.akeyless.io/get-dynamic-secret-value' --data-urlencode "name=/cxflow/${environment}/deploy_from_gitlab" --data-urlencode "token=$TOKEN" > aws_creds
   - export AWS_ACCESS_KEY_ID=$(cat aws_creds | jq -r '.response.access_key_id')
   - export AWS_SECRET_ACCESS_KEY=$(cat aws_creds | jq -r '.response.secret_access_key')
   - rm aws_creds
@@ -27,35 +25,30 @@ before_script:
 .build:
   stage: build
   script:
-    - export REGISTRY_NAME="$REGISTRY/cxflow-${environment}"
-    - export CXFLOW_TOKEN=$(curl 'https://rest.akeyless.io/get-secret-value' --data-urlencode "name=/cimpress/cimsec/cxflow/${environment}/checkmarx/token" --data-urlencode "token=$TOKEN" -X 'POST' | jq -r '.response[0]')
-    - export CHECKMARX_USERNAME=$(curl 'https://rest.akeyless.io/get-secret-value' --data-urlencode "name=/cimpress/cimsec/cxflow/${environment}/checkmarx/username" --data-urlencode "token=$TOKEN" -X 'POST' | jq -r '.response[0]')
-    - export CHECKMARX_PASSWORD=$(curl 'https://rest.akeyless.io/get-secret-value' --data-urlencode "name=/cimpress/cimsec/cxflow/${environment}/checkmarx/password" --data-urlencode "token=$TOKEN" -X 'POST' | jq -r '.response[0]')
-    - export GITLAB_WEBHOOK_TOKEN=$(curl 'https://rest.akeyless.io/get-secret-value' --data-urlencode "name=/cimpress/cimsec/cxflow/${environment}/gitlab/webhook_token" --data-urlencode "token=$TOKEN" -X 'POST' | jq -r '.response[0]')
-    - export GITLAB_TOKEN=$(curl 'https://rest.akeyless.io/get-secret-value' --data-urlencode "name=/cimpress/cimsec/cxflow/${environment}/gitlab/token" --data-urlencode "token=$TOKEN" -X 'POST' | jq -r '.response[0]')
+    - export REGISTRY_NAME="$registry/cxflow"
+    - export CXFLOW_TOKEN=$(curl 'https://rest.akeyless.io/get-secret-value' --data-urlencode "name=/cxflow/${environment}/checkmarx/token" --data-urlencode "token=$TOKEN" -X 'POST' | jq -r '.response[0]')
+    - export CHECKMARX_USERNAME=$(curl 'https://rest.akeyless.io/get-secret-value' --data-urlencode "name=/cxflow/${environment}/checkmarx/username" --data-urlencode "token=$TOKEN" -X 'POST' | jq -r '.response[0]')
+    - export CHECKMARX_PASSWORD=$(curl 'https://rest.akeyless.io/get-secret-value' --data-urlencode "name=/cxflow/${environment}/checkmarx/password" --data-urlencode "token=$TOKEN" -X 'POST' | jq -r '.response[0]')
+    - export GITLAB_WEBHOOK_TOKEN=$(curl 'https://rest.akeyless.io/get-secret-value' --data-urlencode "name=/cxflow/${environment}/gitlab/webhook_token" --data-urlencode "token=$TOKEN" -X 'POST' | jq -r '.response[0]')
+    - export GITLAB_TOKEN=$(curl 'https://rest.akeyless.io/get-secret-value' --data-urlencode "name=/cxflow/${environment}/gitlab/token" --data-urlencode "token=$TOKEN" -X 'POST' | jq -r '.response[0]')
     - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REGISTRY_NAME
-    - docker build --no-cache --build-arg CX_FLOW_VERSION=$CX_FLOW_VERSION -t "$REGISTRY_NAME:$CI_COMMIT_SHORT_SHA" -t "$REGISTRY_NAME:$CX_FLOW_VERSION" -t "$REGISTRY_NAME:latest" .
+    - docker build --no-cache --build-arg CX_FLOW_VERSION=$CX_FLOW_VERSION -t "$REGISTRY_NAME:$CI_COMMIT_SHORT_SHA" -t "$REGISTRY_NAME:$CX_FLOW_VERSION" -t "$REGISTRY_NAME:$tag" .
     - docker push $REGISTRY_NAME:$CI_COMMIT_SHORT_SHA
     - docker push $REGISTRY_NAME:$CX_FLOW_VERSION
-    - docker push $REGISTRY_NAME:latest
+    - docker push $REGISTRY_NAME:$tag
     - aws ssm put-parameter --name "/cxflow/${environment}/checkmarx/username" --value "$CHECKMARX_USERNAME" --type SecureString --overwrite
-    #Checkmarx Password
     - aws ssm put-parameter --name "/cxflow/${environment}/checkmarx/password" --value "$CHECKMARX_PASSWORD" --type SecureString --overwrite
-    #It is worth noting that this below reference will result in what the url resolves.  Go into the console and update if required (validate this)
-    - aws ssm put-parameter --name "/cxflow/${environment}/checkmarx/url" --value "$CHECKMARX_SERVER" --type String --overwrite
-    #This token is associated with the default endpoint for driving a scan/results but that is not also associated with a
-    #webhook event payload (which is a separate token as per below)
+    - aws ssm put-parameter --name "/cxflow/${environment}/checkmarx/url" --value "$CX_FLOW_SERVER" --type String --overwrite
     - aws ssm put-parameter --name "/cxflow/${environment}/checkmarx/token" --value "$CXFLOW_TOKEN" --type SecureString --overwrite
-    #Preshared secret between GitLab and CxFlow - used when registering the webhook for auth
     - aws ssm put-parameter --name "/cxflow/${environment}/gitlab/webhook-token" --value "$GITLAB_WEBHOOK_TOKEN" --type SecureString --overwrite
-    #GitLab Service account API token used for driving git scanning in Checkmarx
-    #posting MD comments in MRs, Creating GitLab issues (if applicable)
     - aws ssm put-parameter --name "/cxflow/${environment}/gitlab/token" --value "$GITLAB_TOKEN" --type SecureString --overwrite
 
 build_production:
   extends: .build
   variables:
     environment: production
-  #only:
-    #refs:
-      #- master
+    tag: stable
+    registry: [ACCOUNT_ID].dkr.ecr.[REGION].amazonaws.com
+  only:
+    refs:
+      - master
