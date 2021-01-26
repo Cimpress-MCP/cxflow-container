@@ -32,16 +32,19 @@ before_script:
     - export GITLAB_WEBHOOK_TOKEN=$(curl 'https://rest.akeyless.io/get-secret-value' --data-urlencode "name=/cxflow/${environment}/gitlab/webhook_token" --data-urlencode "token=$TOKEN" -X 'POST' | jq -r '.response[0]')
     - export GITLAB_TOKEN=$(curl 'https://rest.akeyless.io/get-secret-value' --data-urlencode "name=/cxflow/${environment}/gitlab/token" --data-urlencode "token=$TOKEN" -X 'POST' | jq -r '.response[0]')
     - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REGISTRY_NAME
+    - aws ecr put-image-tag-mutability --repository-name cxflow --image-tag-mutability MUTABLE --region $AWS_DEFAULT_REGION
     - docker build --no-cache --build-arg CX_FLOW_VERSION=$CX_FLOW_VERSION -t "$REGISTRY_NAME:$CI_COMMIT_SHORT_SHA" -t "$REGISTRY_NAME:$CX_FLOW_VERSION" -t "$REGISTRY_NAME:$tag" .
     - docker push $REGISTRY_NAME:$CI_COMMIT_SHORT_SHA
     - docker push $REGISTRY_NAME:$CX_FLOW_VERSION
     - docker push $REGISTRY_NAME:$tag
+    - aws ecr put-image-tag-mutability --repository-name cxflow --image-tag-mutability IMMUTABLE --region $AWS_DEFAULT_REGION
     - aws ssm put-parameter --name "/cxflow/${environment}/checkmarx/username" --value "$CHECKMARX_USERNAME" --type SecureString --overwrite
     - aws ssm put-parameter --name "/cxflow/${environment}/checkmarx/password" --value "$CHECKMARX_PASSWORD" --type SecureString --overwrite
     - aws ssm put-parameter --name "/cxflow/${environment}/checkmarx/url" --value "$CX_FLOW_SERVER" --type String --overwrite
     - aws ssm put-parameter --name "/cxflow/${environment}/checkmarx/token" --value "$CXFLOW_TOKEN" --type SecureString --overwrite
     - aws ssm put-parameter --name "/cxflow/${environment}/gitlab/webhook-token" --value "$GITLAB_WEBHOOK_TOKEN" --type SecureString --overwrite
     - aws ssm put-parameter --name "/cxflow/${environment}/gitlab/token" --value "$GITLAB_TOKEN" --type SecureString --overwrite
+    - aws ecs update-service --cluster cxflow --service "cxflow-${environment}" --force-new-deployment
 
 build_production:
   extends: .build
