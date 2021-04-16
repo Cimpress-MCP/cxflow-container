@@ -87,11 +87,16 @@ sca:
 #    - medium
 #    - low
   
-gitlab:
-  webhook-token: 
-  token: 
-  url: https://gitlab.com
-  api-url: https://gitlab.com/api/v4
+github:
+  webhook-token:
+  token:
+  url: https://github.com
+  api-url: https://api.github.com/repos/
   false-positive-label: false-positive
-  block-merge: false
+  block-merge: true
+  cx-summary-header: Checkmarx Scan Summary
   cx-summary: true
+  flow-summary-header: Violation Summary
+  flow-summary: true
+  detailed-header: Details
+  detailed: true

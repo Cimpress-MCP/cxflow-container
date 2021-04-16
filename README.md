@@ -4,6 +4,12 @@ A repository to build a CxFlow container and push it to AWS ECR using Gitlab pip
 
 Is it weird to give an example of using Gitlab pipelines in a Github repository?  Yes.  So why am I doing it?  Because Github is where we keep all of our world-public repositories, and consistency is important.
 
+## Note for Github/Bitbucket
+
+This repository is intended for usage with Gitlab, but CxFlow itself also integrates with Github and Bitbucket.  To reconfigure CxFlow to work with Github/Bitbucket, simply replace the application.yml file with the appropriate one: application.yml.github or application.yml.bitbucket.
+
+Unfortunately, we don't yet have an example of building the docker container and pushing it to AWS with Bitbucket pipelines or Github Actions, so you'll have to figure that part out yourself.  Hopefully, the [.gitlab-ci.yml](.gitlab-ci.yml) file will get you started.
+
 ## Overview
 
 This repository uses Docker in a Gitlab Pipeline to build a container and push it up to ECR, as well as fetch and push static secrets to ECR.
